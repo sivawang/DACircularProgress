@@ -10,6 +10,9 @@
 
 #import <QuartzCore/QuartzCore.h>
 
+static NSString *const kIndeterminateAnimationKey = @"indeterminateAnimation";
+static NSString *const kProgressAnimationKey = @"progress";
+
 @interface DACircularProgressLayer : CALayer
 
 @property(nonatomic, strong) UIColor *trackTintColor;
@@ -101,7 +104,7 @@
         CGContextAddEllipseInRect(context, endEllipseRect);
         CGContextFillPath(context);
     }
-
+    
     CGContextSetBlendMode(context, kCGBlendModeClear);
     CGFloat innerRadius = radius * (1.0f - self.thicknessRatio);
     CGRect clearRect = (CGRect) {
@@ -112,7 +115,7 @@
     };
     CGContextAddEllipseInRect(context, clearRect);
     CGContextFillPath(context);
-
+    
     if (self.innerTintColor) {
         CGContextSetBlendMode(context, kCGBlendModeNormal);
         CGContextSetFillColorWithColor(context, [self.innerTintColor CGColor]);
@@ -167,6 +170,10 @@
     CGFloat windowContentsScale = self.window.screen.scale;
     self.circularProgressLayer.contentsScale = windowContentsScale;
     [self.circularProgressLayer setNeedsDisplay];
+    
+    if (_indeterminate) {
+        [self addIndeterminateAnimation];
+    }
 }
 
 
@@ -203,8 +210,8 @@
        initialDelay:(CFTimeInterval)initialDelay
        withDuration:(CFTimeInterval)duration
 {
-    [self.layer removeAnimationForKey:@"indeterminateAnimation"];
-    [self.circularProgressLayer removeAnimationForKey:@"progress"];
+    [self.layer removeAnimationForKey:kIndeterminateAnimationKey];
+    [self.circularProgressLayer removeAnimationForKey:kProgressAnimationKey];
     
     CGFloat pinnedProgress = MIN(MAX(progress, 0.0f), 1.0f);
     if (animated) {
@@ -216,7 +223,7 @@
         animation.toValue = [NSNumber numberWithFloat:pinnedProgress];
         animation.beginTime = CACurrentMediaTime() + initialDelay;
         animation.delegate = self;
-        [self.circularProgressLayer addAnimation:animation forKey:@"progress"];
+        [self.circularProgressLayer addAnimation:animation forKey:kProgressAnimationKey];
     } else {
         [self.circularProgressLayer setNeedsDisplay];
         self.circularProgressLayer.progress = pinnedProgress;
@@ -225,8 +232,8 @@
 
 - (void)animationDidStop:(CAAnimation *)animation finished:(BOOL)flag
 {
-   NSNumber *pinnedProgressNumber = [animation valueForKey:@"toValue"];
-   self.circularProgressLayer.progress = [pinnedProgressNumber floatValue];
+    NSNumber *pinnedProgressNumber = [animation valueForKey:@"toValue"];
+    self.circularProgressLayer.progress = [pinnedProgressNumber floatValue];
 }
 
 
@@ -287,24 +294,26 @@
     [self.circularProgressLayer setNeedsDisplay];
 }
 
-- (NSInteger)indeterminate
-{
-    CAAnimation *spinAnimation = [self.layer animationForKey:@"indeterminateAnimation"];
-    return (spinAnimation == nil ? 0 : 1);
-}
-
 - (void)setIndeterminate:(NSInteger)indeterminate
 {
-    if (indeterminate) {
-        if (!self.indeterminate) {
-            CABasicAnimation *spinAnimation = [CABasicAnimation animationWithKeyPath:@"transform.rotation"];
-            spinAnimation.byValue = [NSNumber numberWithDouble:indeterminate > 0 ? 2.0f*M_PI : -2.0f*M_PI];
-            spinAnimation.duration = self.indeterminateDuration;
-            spinAnimation.repeatCount = HUGE_VALF;
-            [self.layer addAnimation:spinAnimation forKey:@"indeterminateAnimation"];
-        }
+    _indeterminate = indeterminate;
+    if (_indeterminate) {
+        [self addIndeterminateAnimation];
     } else {
-        [self.layer removeAnimationForKey:@"indeterminateAnimation"];
+        [self.layer removeAnimationForKey:kIndeterminateAnimationKey];
+    }
+}
+
+- (void)addIndeterminateAnimation
+{
+    CAAnimation *indeterminateAnimation = [self.layer animationForKey:kIndeterminateAnimationKey];
+    
+    if (!indeterminateAnimation) {
+        CABasicAnimation *spinAnimation = [CABasicAnimation animationWithKeyPath:@"transform.rotation"];
+        spinAnimation.byValue = [NSNumber numberWithDouble:_indeterminate > 0 ? 2.0f*M_PI : -2.0f*M_PI];
+        spinAnimation.duration = self.indeterminateDuration;
+        spinAnimation.repeatCount = HUGE_VALF;
+        [self.layer addAnimation:spinAnimation forKey:kIndeterminateAnimationKey];
     }
 }
 
